@@ -1,4 +1,4 @@
-# ecoecon (CRAN 0.0-1, development 0.0-1)
+# ecoecon development 0.0-1
 
 ecoecon R package for development of a Ecological-Economic spatial metric  
 
