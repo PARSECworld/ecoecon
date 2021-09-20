@@ -16,7 +16,8 @@ Model development for Oregon (in data directory)
 
 Preliminary results (in data/results directory)
 		econclust.tif - Raster of clustered census data
-		ecoecon.tif - Raster of combined cluster and ecoregion data 
+		ecoecon.tif - Raster of combined cluster and ecoregion data, encoding 
+						is cluster (1:n * 10000) + ecoregion value		
 
 **Bugs**: Users are encouraged to report bugs here. Go to [issues](https://github.com/PARSECworld/ecoecon/issues) in the menu above, and press new issue to start a new bug report, documentation correction or feature request. You can direct questions to <jeffrey_evans@tnc.org>.
 

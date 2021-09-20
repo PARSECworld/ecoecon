@@ -2,7 +2,8 @@
 library(rgeoda)
 library(sf)
 library(spatialEco)
-library(raster)
+library(terra)
+library(cluster)
 
 setwd("C:/evans/GITS/ecoecon")
   data.dir <- file.path(getwd(), "data")
@@ -35,12 +36,12 @@ n = 10
 # agglomerative hierarchical clustering
 ag <- agnes(daisy(d), diss = TRUE, metric = "manhattan", 
             method="complete", stand = TRUE)
-subdiv$agnes <- cutree(as.hclust(ag), k = n)
+subdiv$agnes <- cutree(as.hclust(ag), k = n) * 10000
   plot(subdiv["agnes"])
 
 # Spatially structured clustering (2nd order contingency) 
 queen_w <- queen_weights(subdiv, order=2)
-subdiv$azp <- azp_greedy(n, queen_w, d)$Clusters
+subdiv$azp <- azp_greedy(n, queen_w, d)$Clusters * 10000
   plot(subdiv["azp"])
 
 #*********************************
@@ -49,3 +50,18 @@ er <- rast(file.path(data.dir, "ecoregions.tif"))
 er.dat <- read.csv(file.path(data.dir, "ecoregion_data.csv"))
 rc <- rasterize(vect(subdiv), rast(er), field="agnes",  background=NA, 
                 touches=FALSE, update=FALSE, sum=FALSE, cover=FALSE)
+writeRaster(rc, file.path(data.dir, "results", "econclust.tif"), 
+            overwrite=TRUE)
+
+#*********************************
+# Merge ecoregions and clusters
+r <- c(er, rc)
+  r <- as(stack(r), "SpatialPixelsDataFrame")
+  ( cts <- table(r@data[,1], r@data[,2]) )
+
+ecoecon <- rc + er
+writeRaster(ecoecon, file.path(data.dir, "results", "econecon.tif"), 
+            overwrite=TRUE)
+
+
+
