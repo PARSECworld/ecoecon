@@ -9,12 +9,14 @@ ecoecon R package for development of a Ecological-Economic spatial metric
 # Available data in ecoecon 0.0-1 are:
 	
 Model development for Oregon (in data directory)
+
 		ecoregion_data.csv - Tabular ecoregions data (Value is key field) 
 		ecoregions.tif - USGS 2015 World Ecological Land Units (OR subset)
 		OR_subdivisions.shp - Shapefile of Oregon census subdivisions 
 		Oregon_CSD_Table.csv - Tabular census data
 
 Preliminary results (in data/results directory)
+
 		econclust.tif - Raster of clustered census data
 		ecoecon.tif - Raster of combined cluster and ecoregion data, encoding 
 						is cluster (1:n * 10000) + ecoregion value		
