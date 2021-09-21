@@ -5,6 +5,7 @@ library(spatialEco)
 library(terra)
 library(cluster)
 library(factoextra)
+library(RColorBrewer)
 
 setwd("C:/evans/GITS/ecoecon")
   data.dir <- file.path(getwd(), "data")
@@ -80,6 +81,8 @@ pca <- rasterize(vect(subdiv), rast(er), field="pca",  background=NA,
 writeRaster(pca, file.path(data.dir, "results", "pca_cluster.tif"), 
             overwrite=TRUE)
 
+plot(pca, col=brewer.pal(9,"Spectral"), legend=FALSE)
+
 #*********************************
 # Clustering
 ( opt <- optimal.k(daisy(d), nk = 20) )
@@ -110,6 +113,3 @@ r <- c(er, rc)
 ecoecon <- rc + er
 writeRaster(ecoecon, file.path(data.dir, "results", "econecon.tif"), 
             overwrite=TRUE)
-
-
-
