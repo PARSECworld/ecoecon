@@ -1,7 +1,7 @@
 #' ESDA of county-level economic data
 invisible(lapply( c("rgeoda", "sf", "sp", "spatialEco", "spdep", 
-          "RColorBrewer", "ggplot2", "dplyr", "EcoGenetics"), 
-		  library, character.only = TRUE))  
+          "RColorBrewer", "ggplot2", "dplyr", "EcoGenetics",
+		  "rfUtilities"), library, character.only = TRUE))  
 
 setwd("C:/evans/GITS/ecoecon")
   data.dir <- file.path(getwd(), "data")
@@ -19,6 +19,15 @@ subdiv <- st_read(file.path(data.dir, "OR_subdivisions.shp"))
   subdiv <- st_transform(subdiv, st_crs("+proj=longlat +datum=WGS84 +no_defs"))
     subdiv <- merge(subdiv, econ, by="AFFGEOID")
 
+#*********************************
+# Identify collinearity and multicollinearity 
+# in data
+d <- sf::st_drop_geometry(subdiv[,15:(ncol(subdiv)-1)])
+( cl <- collinear(d, p=0.75) )
+  
+( cl.test <- rfUtilities::multi.collinear(d, perm = TRUE, leave.out = TRUE, n = 999) )
+ 
+#*********************************
 # Explore neighbor matrix (Wij)
 subdiv.sp <- as(subdiv, "Spatial")
 or.nb <- poly2nb(pl = subdiv.sp, queen = TRUE)
