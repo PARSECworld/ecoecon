@@ -96,8 +96,17 @@ plot(st_geometry(subdiv), col=lcols, main="GINI 2010 & 2019 Bivariate LISA")
          fill=lisa.df$col, horiz = FALSE, cex=0.75)
 
 #*****************************************************
-# Moran's-I univariate correlogram 
-moran <- eco.correlog(Z=st_drop_geometry(subdiv[,"Gini_Index_2010"])[,1], 
-                      XY = st_coordinates(subdiv)[,1:2], 
-                      method = "I", smax=10, size=100)
-  eco.plotCorrelog(moran)
+# Moran's-I univariate and correlation correlogram 
+or.nb <- poly2nb(pl = as(subdiv, "Spatial"), 
+                 queen = TRUE)
+  summary(or.nb)
+  
+( gini2019_cor <- sp.correlogram(or.nb, st_drop_geometry(subdiv[,"Gini_Index_2019"])[,1], 
+                                 order=8, method="corr", zero.policy=TRUE) )
+  plot(gini2019_cor, main="Lagged Correlation of GINI 2018")
+
+( gini2019_acor <- sp.correlogram(or.nb, st_drop_geometry(subdiv[,"Gini_Index_2019"])[,1], 
+                                 order=8, method="I", zero.policy=TRUE) )
+  plot(gini2019_acor, main="Lagged Spatial Autocorrelation of GINI 2018")
+
+
