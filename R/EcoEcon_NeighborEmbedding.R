@@ -1,12 +1,10 @@
-#' Cluster county-level economic data
+#' kNN neighbor embedding of county-level economic data
 library(sf)
 library(terra)
 library(spatialEco)
-library(RColorBrewer)
 library(umap)
-library(rsvd) 
-library(plotly) 
 library(ggplot2)
+library(rgl)
 
 setwd("C:/evans/GITS/ecoecon")
   data.dir <- file.path(getwd(), "data")
@@ -111,9 +109,20 @@ ggplot(edat, aes(x = X1, y = X2, color = realm)) +
 	  guides(size = "none", color=guide_legend(ncol=1)) +
 	    scale_color_viridis(discrete = TRUE, option = "A") +
           theme_bw()
-	  
+
+rescale <- function(x) ( x - min(x) ) / ( max(x) - min(x) ) 
+x <- rescale(eumap[["layout"]][,1])
+y <- rescale(eumap[["layout"]][,2])
+z <- rescale(eumap[["layout"]][,3])
+v <- rescale(eumap[["layout"]][,4])
+rbPal <- colorRampPalette(rev(c("red", "yellow", "green", "darkorchid4")))
+vclr <- rbPal(30)[as.numeric(cut(v, breaks = 30))]
+plot3d(x, y, z, type="s", size=v*2,5, col=vclr,
+      xlab="", ylab="", zlab="") 
 
 # # Create interactive plot
+# library(rsvd) 
+# library(plotly) 
 #   fig <- plot_ly(edat, x = ~X1, y = ~X2, split = ~label,
 #                  type = 'scatter', mode = 'markers', colors=clr) %>%  
 #   layout(  
