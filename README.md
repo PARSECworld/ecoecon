@@ -1,12 +1,13 @@
-# ecoecon development 0.0-1
+# ecoecon development 0.0-2
 
-ecoecon R package for development of a Ecological-Economic spatial metric  
+ecoecon R code for development of a Ecological-Economic spatial metric  
 
-# Available functions in ecoecon 0.0-1 are:
+# Available code and functions in ecoecon 0.0-2 are:
 
 		clusterEcon - Spatial clustering of economic data
-
-# Available data in ecoecon 0.0-1 are:
+        EcoEcon_NeighborEmbedding - model for neighbor embedding clustering method
+		
+# Available data in ecoecon 0.0-2 are:
 	
 Model development for Oregon (in data directory)
 
@@ -17,10 +18,14 @@ Model development for Oregon (in data directory)
 
 Preliminary results (in data/results directory)
 
-		econclust.tif - Raster of clustered census data
-		ecoecon.tif - Raster of combined cluster and ecoregion data, encoding 
-						is cluster (1:n * 10000) + ecoregion value		
-		pca_cluster.tif - Raster of clusters from PCA
+		ecoecon.tif - Raster stack (ecoecon, subdivision, realm class, realm prop) 
+		            of combined cluster and ecoregion realms, encoding 
+					is ((realm – 5000) * subdivision cluster 1:8) 	
+		SubdivEconResults.csv - Economic variables and clustering results
+		ParameterClusteredDistributions.pdf - plots of each variables histogram 
+		            colored by UMAP cluster with overlay PDF
+		ParameterStackedDistributions.pdf - Overlaid probability density functions for 
+                     each variable and cluster.		
 		
 **Bugs**: Users are encouraged to report bugs here. Go to [issues](https://github.com/PARSECworld/ecoecon/issues) in the menu above, and press new issue to start a new bug report, documentation correction or feature request. You can direct questions to <jeffrey_evans@tnc.org>.
 
