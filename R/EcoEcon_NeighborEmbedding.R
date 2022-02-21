@@ -253,14 +253,12 @@ fprop <- function(x) {
  }
 er.prop <- focal(er, matrix(1, 5, 5), fprop)
 
-erdiv <- c(sdiv, er.class, er.prop)
-  cls <- st_as_sf(as.points(erdiv))
-cls$ecoecon <- (cls$USGS_ELU_Global - 5000) * cls$cluster
+# erdiv <- c(sdiv, er.class, er.prop)
+#   cls <- as.points(erdiv)
+#   cls$ecoecon <- (cls$USGS_ELU_Global - 5000) * cls$cluster
+# ecoecon <- rasterize(cls, er.class, "ecoecon")
 
-ecoecon <- rasterize(cls, er.class, "ecoecon")
-
-ecoecon2 <- (er.class - 5000) * sdiv
-
+ecoecon <- (er.class - 5000) * sdiv
   ecoecon <- c(ecoecon, sdiv, er.class, er.prop)
     names(ecoecon) <- c("ecoecon", "subdiv", "realm", "prealm")
     writeRaster(ecoecon, file.path(getwd(), "results",  
