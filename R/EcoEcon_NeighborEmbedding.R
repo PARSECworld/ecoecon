@@ -1,10 +1,7 @@
 #' kNN neighbor embedding of county-level economic data
-library(sf)
-library(terra)
-library(spatialEco)
-library(umap)
-library(ggplot2)
-library(rgl)
+suppressMessages(invisible(lapply(c("sf", "terra", "spatialEco", 
+                 "umap", "ggplot2", "rgl", "e1071", "viridis", "gridExtra"), 
+				 require, character.only=TRUE)))
 
 setwd("C:/evans/GITS/ecoecon")
   data.dir <- file.path(getwd(), "data")
@@ -38,9 +35,10 @@ pecon <- data.frame(parm=new, pre=pre, post=post)
         as.numeric(econ[,y1])
     }
   names(delta) <- pecon$parm
-econ.delta <- do.call(cbind, delta)
+econ.delta <- as.data.frame(do.call(cbind, delta))
+  names(econ.delta) <- paste(names(econ.delta), "_delta")
 
-econ <- data.frame(econ.delta, econ[,c(33:35)])
+econ <- data.frame(econ[,post], econ.delta, econ[,c(33:35)])
  
 #*********************************
 #   Index and remove NA's
@@ -78,7 +76,6 @@ subdiv$Value <- as.numeric(substring(er.maj, 3, 6))
 subdiv$er.prop <- apply(d, 1, function(x) x[which.max(x)] ) 
 
 ecoecon <- merge(st_drop_geometry(subdiv), er.dat, by="Value") 
-
 # apply(ecoecon[,64:72], 2, function(x) length(unique(x)) )
 
 #***********************************************************
@@ -95,21 +92,54 @@ custom.settings <- umap.defaults
 
 eumap <- umap(econ, config=custom.settings)
 
-pidx <- c(1,2)
+#***********************************************************
+# Cluster data, assign clusters to subdiv
+
+# Search for optimal k
+asw <- numeric(10)
+  for (k in 2:10) {
+    asw[k] <- cluster::pam(scale(eumap[["layout"]]), k)$silinfo$avg.width
+  }
+k.opt <- which.max(asw)
+
+p <- cmeans(scale(eumap[["layout"]]), centers = k.opt, iter.max = 100, 
+            dist = "euclidean", m = 2)
+  pval <- p$membership			
+	p <- data.frame(cluster=p$cluster, pval)
+
+# New table with clusters, pvalue, majority realm, fraction of realm,
+#   first two UMAP embeddings and, covariates used in UMAP embeddings
 lab = ecoecon[,c("Realm_World_Ecosystem", "LF_ClassName")[1]]
   lab = gsub("Nearctic ", "", lab)
+pidx <- c(1,2)
 
+xy <- data.frame(subdiv$AFFGEOID, st_coordinates(st_centroid(subdiv))[,1:2])
+  names(xy) <- c("AFFGEOID", "long", "lat") 
+econ <- data.frame(xy[-unique(na.idx[,1]),], cluster=p$cluster, pvalue=apply(pval, 1, max),
+                   realm = lab[-unique(na.idx[,1])],
+				   er_fraction = ecoecon$er.prop[-unique(na.idx[,1])],
+				   eumap[["layout"]][,pidx],
+                   econ)
 
-edat <- data.frame(eumap[["layout"]][,pidx], realm = lab[-unique(na.idx[,1])],
-                   er_fraction = ecoecon$er.prop[-unique(na.idx[,1])]) 
+write.csv(econ, file.path(getwd(), "results", "SubdivEconResults.csv"),
+          row.names = FALSE)
 
-ggplot(edat, aes(x = X1, y = X2, color = realm)) + 
+#***********************************************************
+# PLot results
+
+#### Plot by ecological realm
+# 2D plot of first two embeddings color coded by realm, 
+#   point size represents fraction of realm within subdiv
+ggplot(econ, aes(x = X1, y = X2, color = realm)) + 
   geom_point(aes(size = er_fraction)) +
     scale_size_continuous(range = c(0.5, 6)) +
 	  guides(size = "none", color=guide_legend(ncol=1)) +
 	    scale_color_viridis(discrete = TRUE, option = "A") +
           theme_bw()
 
+#### Plot by [X,Y]Z and volume of 4th dimension  
+# 3D plot of first four embeddings where dim 1-3 are [X,Y]Z
+#   and point color/size are volume of 4th embedding
 rescale <- function(x) ( x - min(x) ) / ( max(x) - min(x) ) 
 x <- rescale(eumap[["layout"]][,1])
 y <- rescale(eumap[["layout"]][,2])
@@ -120,15 +150,115 @@ vclr <- rbPal(30)[as.numeric(cut(v, breaks = 30))]
 plot3d(x, y, z, type="s", size=v*2,5, col=vclr,
       xlab="", ylab="", zlab="") 
 
-# # Create interactive plot
-# library(rsvd) 
-# library(plotly) 
-#   fig <- plot_ly(edat, x = ~X1, y = ~X2, split = ~label,
-#                  type = 'scatter', mode = 'markers', colors=clr) %>%  
-#   layout(  
-#     plot_bgcolor = "#e5ecf6",
-#     legend = list(title = list(text = "Ecoregions")),
-#     xaxis = list(title = "0"),  
-#     yaxis = list(title = "1")) 
-# 
-# fig
+#### Plot Fuzzy C-means cluster
+# 2D plot of first two embeddings color coded by cluster  
+#   point size represents probability of cluster assignment 
+ggplot(econ, aes(x = X1, y = X2, color = factor(cluster))) + 
+  geom_point(aes(size = pvalue)) +
+    scale_colour_brewer(palette = "Spectral") +
+      scale_size_continuous(range = c(1, 6)) +  
+	    guides(size = "none", color=guide_legend(ncol=1))
+
+# plot clusters by subdivision	 
+subdiv$cluster <- insert.values(econ$cluster, NA, sort(unique(na.idx[,1])))
+  plot(subdiv["cluster"], pal=RColorBrewer::brewer.pal(k.opt,"Spectral"))
+    subdiv$cluster[which(is.na(subdiv$cluster))] <- 0 
+    
+#### 3D Plot by [X,Y]Z and cluster
+# 3D plot of first three embeddings where point colors
+#   represent cluster and size pvalue of membership 
+rescale <- function(x) ( x - min(x) ) / ( max(x) - min(x) ) 
+x <- rescale(eumap[["layout"]][,1])
+y <- rescale(eumap[["layout"]][,2])
+z <- rescale(eumap[["layout"]][,3])
+v <- econ$pvalue 
+cls <- factor(econ$cluster)
+  levels(cls) <- rev(RColorBrewer::brewer.pal(k.opt,"Spectral"))
+    cls <- as.character(cls)	
+plot3d(x, y, z, type="s", size=v*2,5, col=cls,
+      xlab="", ylab="", zlab="") 
+ 
+#***********************************************************
+# Exploratory plots of raw parameter distributions
+pcol = 7:26 # column indices for model parameters
+
+pdf(file.path(getwd(), "results", "ParameterClusteredDistributions.pdf"), height=8, width=11)
+  lapply(split(pcol, ceiling(seq_along(pcol)/4)), function(x) {
+    plist <- vector(mode = "list", length = 4)
+    i=0
+    for(j in x) {
+      i=i+1
+      plist[[i]] <- 
+        ggplot(data = econ, aes_string(x = names(econ)[j], fill = "cluster")) + 
+          geom_histogram(aes(y =..density..), bins=8, alpha=0.7, position="dodge") + 
+            geom_density(aes_string(x = names(econ)[j]), inherit.aes = FALSE) +
+              scale_fill_brewer(palette = "BuPu") +			  
+                geom_rug() +
+                  labs(x = names(econ)[j]) +
+                    theme_minimal()  
+     }
+    g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], plist[[4]], 
+                 nrow=2)  
+      print(g) })    
+dev.off()
+
+pdf(file.path(getwd(), "results", "ParameterStackedDistributions.pdf"), height=8, width=11)
+  lapply(split(pcol, ceiling(seq_along(pcol)/4)), function(x) {
+    plist <- vector(mode = "list", length = 4)
+    i=0
+    for(j in x) {
+      i=i+1
+      plist[[i]] <- 
+        ggplot(data = econ, aes_string(x = names(econ)[j], fill = "cluster")) + 
+          geom_density(alpha=0.3) +
+            scale_fill_brewer(palette = "BuPu") +			  
+              geom_rug() +
+                labs(x = names(econ)[j]) +
+                  theme_minimal() 
+     }
+    g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], plist[[4]], 
+                 nrow=2)  
+      print(g) })    
+dev.off()
+
+#***********************************************************
+# Cluster aggregation statistics
+clust.med <- aggregate(econ[,7:ncol(econ)], by=list(econ[,"cluster"]), median)
+clust.mad <- aggregate(econ[,7:ncol(econ)], by=list(econ[,"cluster"]), mad)
+
+# plot distribution of Gini_Index._delta
+i = Gini_Index._delta
+ggplot(data = clust.med, mapping = aes_string(x = i)) + 
+  geom_histogram(aes(y=..density..), bins=k.opt, fill="blue", 
+                 color="white", alpha=0.7) + 
+  geom_density() +
+  geom_rug() +
+  labs(x=i) +
+  theme_minimal()  
+ 
+#***********************************************************
+# Focal ecological regime assignment 
+sdiv <- rasterize(vect(subdiv), er, field="cluster")
+
+fclass <- function(x) {
+  xp <- prop.table(table(factor(x)))
+  as.numeric(names(xp)[which.max(xp)])
+ }
+er.class <- focal(er, matrix(1, 5, 5), fclass)
+
+fprop <- function(x) {
+  xp <- prop.table(table(factor(x)))
+  xp[which.max(xp)]
+ }
+er.prop <- focal(er, matrix(1, 5, 5), fprop)
+
+erdiv <- c(sdiv, er.class, er.prop)
+  cls <- st_as_sf(as.points(erdiv))
+cls$ecoecon <- (cls$USGS_ELU_Global - 5000) * cls$cluster
+
+ecoecon <- rasterize(cls, er.class, "ecoecon")
+  ecoecon <- c(ecoecon, sdiv, er.class, er.prop)
+    names(ecoecon) <- c("ecoecon", "subdiv", "realm", "prealm")
+    writeRaster(ecoecon, file.path(getwd(), "results",  
+                "ecoecon.tif"), overwrite = TRUE)
+
