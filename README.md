@@ -19,13 +19,13 @@ Model development for Oregon (in data directory)
 Preliminary results (in data/results directory)
 
 		ecoecon.tif - Raster stack (ecoecon, subdivision, realm class, realm prop) 
-		            of combined cluster and ecoregion realms, encoding 
-					is ((realm – 5000) * subdivision cluster 1:8) 	
+                of combined cluster and ecoregion realms, encoding 
+                is ((realm – 5000) * subdivision cluster 1:8) 	
 		SubdivEconResults.csv - Economic variables and clustering results
 		ParameterClusteredDistributions.pdf - plots of each variables histogram 
-		            colored by UMAP cluster with overlay PDF
+                colored by UMAP cluster with overlay PDF
 		ParameterStackedDistributions.pdf - Overlaid probability density functions for 
-                     each variable and cluster.		
+                each variable and cluster.		
 		
 **Bugs**: Users are encouraged to report bugs here. Go to [issues](https://github.com/PARSECworld/ecoecon/issues) in the menu above, and press new issue to start a new bug report, documentation correction or feature request. You can direct questions to <jeffrey_evans@tnc.org>.
 
