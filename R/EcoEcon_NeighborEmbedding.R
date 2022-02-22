@@ -1,6 +1,7 @@
 #' kNN neighbor embedding of county-level economic data
 suppressMessages(invisible(lapply(c("sf", "terra", "spatialEco", 
-                 "umap", "ggplot2", "rgl", "e1071", "viridis", "gridExtra"), 
+                 "umap", "ggplot2", "rgl", "e1071", "viridis", 
+				 "factoextra", "cluster", "gridExtra"), 
 				 require, character.only=TRUE)))
 
 setwd("C:/evans/GITS/ecoecon")
@@ -18,12 +19,12 @@ names(econ)[1:2] <- c("AFFGEOID", "NAME")
 subdiv <- st_read(file.path(data.dir, "OR_subdivisions.shp"))
   subdiv <- st_transform(subdiv, st_crs("+proj=longlat +datum=WGS84 +no_defs"))
     subdiv <- merge(subdiv, econ, by="AFFGEOID")
-  econ <- st_drop_geometry(subdiv[,15:49])
+  econ <- st_drop_geometry(subdiv[,c(1,15:49)])
 
-econ.names <- names(econ)[-c(33:35)]
-post <- sort(econ.names[grep("2019", econ.names)]) 
-pre <- sort(econ.names[which(!econ.names %in% post)]) 
-new <- sort(unlist(lapply(strsplit(pre, "_"), function(x) paste(x[-length(x)], 
+econ.names <- names(econ)[-c(1,34:36)]
+  post <- sort(econ.names[grep("2019", econ.names)]) 
+  pre <- sort(econ.names[which(!econ.names %in% post)])  
+  new <- sort(unlist(lapply(strsplit(pre, "_"), function(x) paste(x[-length(x)], 
               collapse = "_") ) ) )
 pecon <- data.frame(parm=new, pre=pre, post=post)
   delta <- list()
@@ -38,23 +39,24 @@ pecon <- data.frame(parm=new, pre=pre, post=post)
 econ.delta <- as.data.frame(do.call(cbind, delta))
   names(econ.delta) <- paste(names(econ.delta), "_delta")
 
-econ <- data.frame(econ[,post], econ.delta, econ[,c(33:35)])
+econ <- data.frame(AFFGEOID = econ[,1], econ[,post], 
+                        econ.delta, econ[,c(34:36)])
  
 #*********************************
 #   Index and remove NA's
 #   Screen collinearity
 na.idx <- which(is.na(econ), arr.ind = TRUE)
   cat(paste(names(econ)[unique(na.idx[,2])], "\n"),
-      "have NA values", "\n")
+      "columns have NA values", "\n")
 
 if(nrow(na.idx) > 0){
   cat("removing rows:", unique(na.idx[,1]), "\n")
   econ <- econ[-unique(na.idx[,1]),]   
 }
 
-( cl <- collinear(na.omit(econ), p=0.75) )
-  if(length(cl) > 0) 
-    econ <- econ[,-which(names(econ) %in% cl[-c(6,7)])]
+#( cl <- collinear(na.omit(econ[,-1]), p=0.75) )
+#  if(length(cl) > 0) 
+#    econ <- econ[,-which(names(econ) %in% cl[-c(6,7)])]
 
 #*********************************
 # Read ecoregional data 
@@ -90,7 +92,7 @@ custom.settings <- umap.defaults
   custom.settings$random_state = 42
   custom.settings$n_neighbors = k  
 
-eumap <- umap(econ, config=custom.settings)
+eumap <- umap(econ[,-1], config=custom.settings)
 
 #***********************************************************
 # Cluster data, assign clusters to subdiv
@@ -115,11 +117,12 @@ pidx <- c(1,2)
 
 xy <- data.frame(subdiv$AFFGEOID, st_coordinates(st_centroid(subdiv))[,1:2])
   names(xy) <- c("AFFGEOID", "long", "lat") 
-econ <- data.frame(xy[-unique(na.idx[,1]),], cluster=p$cluster, pvalue=apply(pval, 1, max),
+econ <- data.frame(AFFGEOID = econ[,1], cluster=p$cluster, pvalue=apply(pval, 1, max),
                    realm = lab[-unique(na.idx[,1])],
 				   er_fraction = ecoecon$er.prop[-unique(na.idx[,1])],
 				   eumap[["layout"]][,pidx],
-                   econ)
+                   econ[,-1])
+  econ <- merge(xy[-unique(na.idx[,1]),], econ, by="AFFGEOID")
 
 write.csv(econ, file.path(getwd(), "results", "SubdivEconResults.csv"),
           row.names = FALSE)
@@ -127,6 +130,72 @@ write.csv(econ, file.path(getwd(), "results", "SubdivEconResults.csv"),
 subdiv$cluster <- insert.values(econ$cluster, NA, sort(unique(na.idx[,1])))
   subdiv$cluster[which(is.na(subdiv$cluster))] <- 0 
  
+#***********************************************************
+# Focal ecological regime assignment 
+sdiv <- rasterize(vect(subdiv), er, field="cluster")
+
+fclass <- function(x) {
+  xp <- prop.table(table(factor(x)))
+  as.numeric(names(xp)[which.max(xp)])
+ }
+er.class <- focal(er, matrix(1, 5, 5), fclass)
+
+fprop <- function(x) {
+  xp <- prop.table(table(factor(x)))
+  xp[which.max(xp)]
+ }
+er.prop <- focal(er, matrix(1, 5, 5), fprop)
+
+# erdiv <- c(sdiv, er.class, er.prop)
+#   cls <- as.points(erdiv)
+#   cls$ecoecon <- (cls$USGS_ELU_Global - 5000) * cls$cluster
+# ecoecon <- rasterize(cls, er.class, "ecoecon")
+
+ecoecon <- (er.class - 5000) * sdiv
+  ecoecon <- c(ecoecon, sdiv, er.class, er.prop)
+    names(ecoecon) <- c("ecoecon", "subdiv", "realm", "prealm")
+    writeRaster(ecoecon, file.path(getwd(), "results",  
+                "ecoecon.tif"), overwrite = TRUE)
+
+#***********************************************************
+# Calculate per-group PCA
+
+group <- sort(unique(econ$cluster))
+  contributions <- list()
+
+pdf(file.path(getwd(), "results", "GroupPCA.pdf"), height=10, width=10)
+  for(i in 1:length(group)) {
+    d <- econ[econ$cluster == group[i],][c(1,10:29)]
+      res.pca <- prcomp(d[,-1], scale = TRUE)
+    plt <- fviz_eig(res.pca, main=paste0("Cluster ", i, " PCA variances"))
+	  print(plt)
+    plt <- fviz_pca_var(res.pca, col.var = "contrib",	
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                 repel = TRUE) + 
+				 ggtitle(paste0("Cluster ", i, " PCA contribution"))
+      print(plt)	  
+    plt <- fviz_pca_biplot(res.pca, repel = TRUE,
+                    col.var = "#2E9FDF", col.ind = "#696969") +
+					ggtitle(paste0("Cluster ", i, " PCA biplot"))
+      print(plt)
+    ind.coord <- res.pca$x	
+    center <- res.pca$center
+    scale <- res.pca$scale
+    getdistance <- function(ind_row, center, scale){
+      return(sum(((ind_row-center)/scale)^2))
+      }
+    d2 <- apply(d[,-1], 1, getdistance, center, scale)
+    cos2 <- function(ind.coord, d2){return(ind.coord^2/d2)}
+    ind.cos2 <- apply(ind.coord, 2, cos2, d2)	
+    contrib <- function(ind.coord, comp.sdev, n.ind){
+      100*(1/n.ind)*ind.coord^2/comp.sdev^2
+    }
+    ind.contrib <- t(apply(ind.coord, 1, contrib, 
+                     res.pca$sdev, nrow(ind.coord)))
+    contributions[[i]] <- data.frame(AFFGEOID=d[,1], cluster=i, ind.contrib) 
+  }
+dev.off()
+  
 #***********************************************************
 # PLot results
 
@@ -181,7 +250,7 @@ plot3d(x, y, z, type="s", size=v*2,5, col=cls,
  
 #***********************************************************
 # Exploratory plots of raw parameter distributions
-pcol = 7:26 # column indices for model parameters
+pcol = 10:44 # column indices for model parameters
 
 pdf(file.path(getwd(), "results", "ParameterClusteredDistributions.pdf"), height=8, width=11)
   lapply(split(pcol, ceiling(seq_along(pcol)/4)), function(x) {
@@ -237,29 +306,3 @@ ggplot(data = clust.med, mapping = aes_string(x = i)) +
   labs(x=i) +
   theme_minimal()  
  
-#***********************************************************
-# Focal ecological regime assignment 
-sdiv <- rasterize(vect(subdiv), er, field="cluster")
-
-fclass <- function(x) {
-  xp <- prop.table(table(factor(x)))
-  as.numeric(names(xp)[which.max(xp)])
- }
-er.class <- focal(er, matrix(1, 5, 5), fclass)
-
-fprop <- function(x) {
-  xp <- prop.table(table(factor(x)))
-  xp[which.max(xp)]
- }
-er.prop <- focal(er, matrix(1, 5, 5), fprop)
-
-# erdiv <- c(sdiv, er.class, er.prop)
-#   cls <- as.points(erdiv)
-#   cls$ecoecon <- (cls$USGS_ELU_Global - 5000) * cls$cluster
-# ecoecon <- rasterize(cls, er.class, "ecoecon")
-
-ecoecon <- (er.class - 5000) * sdiv
-  ecoecon <- c(ecoecon, sdiv, er.class, er.prop)
-    names(ecoecon) <- c("ecoecon", "subdiv", "realm", "prealm")
-    writeRaster(ecoecon, file.path(getwd(), "results",  
-                "ecoecon.tif"), overwrite = TRUE)
