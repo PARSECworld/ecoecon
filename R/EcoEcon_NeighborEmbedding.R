@@ -7,6 +7,8 @@ suppressMessages(invisible(lapply(c("sf", "terra", "spatialEco",
 setwd("C:/evans/GITS/ecoecon")
   data.dir <- file.path(getwd(), "data")
 
+set.seed(42)
+
 #*********************************
 # Read tabular data
 econ <- read.csv(file.path(data.dir, "Oregon_CSD_Table.csv"))
@@ -158,6 +160,70 @@ ecoecon <- (er.class - 5000) * sdiv
                 "ecoecon.tif"), overwrite = TRUE)
 
 #***********************************************************
+# PLot results
+
+pdf(file.path(getwd(), "results", "UMAP_Cluster_resutls.pdf"),
+    height=8.5, width=11) 
+
+#### Plot by ecological realm
+# 2D plot of first two embeddings color coded by realm, 
+#   point size represents fraction of realm within subdiv
+p <- ggplot(econ, aes(x = X1, y = X2, color = realm)) + 
+  geom_point(aes(size = er_fraction)) +
+    scale_size_continuous(range = c(0.5, 6)) +
+	  guides(size = "none", color=guide_legend(ncol=1)) +
+	    scale_color_viridis(discrete = TRUE, option = "A") +
+          theme_bw()
+print(p)
+
+#### Plot Fuzzy C-means cluster
+# 2D plot of first two embeddings color coded by cluster  
+#   point size represents probability of cluster assignment 
+p <- ggplot(econ, aes(x = X1, y = X2, color = factor(cluster))) + 
+  geom_point(aes(size = pvalue)) +
+    scale_colour_brewer(palette = "Spectral") +
+      scale_size_continuous(range = c(1, 6)) +  
+	    guides(size = "none", color=guide_legend(ncol=1))
+print(p) 
+
+# plot clusters by subdivision
+plot(st_geometry(subdiv))	 
+  plot(subdiv["cluster"][-which(subdiv$cluster == 0),], 
+       pal=RColorBrewer::brewer.pal(k.opt,"Spectral"), 
+	   add=TRUE)
+
+plot(ecoecon)
+
+dev.off() 
+ 
+#### Plot by [X,Y]Z and volume of 4th dimension  
+# 3D plot of first four embeddings where dim 1-3 are [X,Y]Z
+#   and point color/size are volume of 4th embedding
+rescale <- function(x) ( x - min(x) ) / ( max(x) - min(x) ) 
+x <- rescale(eumap[["layout"]][,1])
+y <- rescale(eumap[["layout"]][,2])
+z <- rescale(eumap[["layout"]][,3])
+v <- rescale(eumap[["layout"]][,4])
+rbPal <- colorRampPalette(rev(c("red", "yellow", "green", "darkorchid4")))
+vclr <- rbPal(30)[as.numeric(cut(v, breaks = 30))]
+plot3d(x, y, z, type="s", size=v*2,5, col=vclr,
+      xlab="", ylab="", zlab="") 
+    
+#### 3D Plot by [X,Y]Z and cluster
+# 3D plot of first three embeddings where point colors
+#   represent cluster and size pvalue of membership 
+rescale <- function(x) ( x - min(x) ) / ( max(x) - min(x) ) 
+x <- rescale(eumap[["layout"]][,1])
+y <- rescale(eumap[["layout"]][,2])
+z <- rescale(eumap[["layout"]][,3])
+v <- econ$pvalue 
+cls <- factor(econ$cluster)
+  levels(cls) <- rev(RColorBrewer::brewer.pal(k.opt,"Spectral"))
+    cls <- as.character(cls)	
+plot3d(x, y, z, type="s", size=v*2,5, col=cls,
+      xlab="", ylab="", zlab="") 
+ 
+#***********************************************************
 # Calculate per-group PCA
 
 group <- sort(unique(econ$cluster))
@@ -197,60 +263,9 @@ pdf(file.path(getwd(), "results", "GroupPCA.pdf"), height=10, width=10)
 dev.off()
   
 #***********************************************************
-# PLot results
-
-#### Plot by ecological realm
-# 2D plot of first two embeddings color coded by realm, 
-#   point size represents fraction of realm within subdiv
-ggplot(econ, aes(x = X1, y = X2, color = realm)) + 
-  geom_point(aes(size = er_fraction)) +
-    scale_size_continuous(range = c(0.5, 6)) +
-	  guides(size = "none", color=guide_legend(ncol=1)) +
-	    scale_color_viridis(discrete = TRUE, option = "A") +
-          theme_bw()
-
-#### Plot by [X,Y]Z and volume of 4th dimension  
-# 3D plot of first four embeddings where dim 1-3 are [X,Y]Z
-#   and point color/size are volume of 4th embedding
-rescale <- function(x) ( x - min(x) ) / ( max(x) - min(x) ) 
-x <- rescale(eumap[["layout"]][,1])
-y <- rescale(eumap[["layout"]][,2])
-z <- rescale(eumap[["layout"]][,3])
-v <- rescale(eumap[["layout"]][,4])
-rbPal <- colorRampPalette(rev(c("red", "yellow", "green", "darkorchid4")))
-vclr <- rbPal(30)[as.numeric(cut(v, breaks = 30))]
-plot3d(x, y, z, type="s", size=v*2,5, col=vclr,
-      xlab="", ylab="", zlab="") 
-
-#### Plot Fuzzy C-means cluster
-# 2D plot of first two embeddings color coded by cluster  
-#   point size represents probability of cluster assignment 
-ggplot(econ, aes(x = X1, y = X2, color = factor(cluster))) + 
-  geom_point(aes(size = pvalue)) +
-    scale_colour_brewer(palette = "Spectral") +
-      scale_size_continuous(range = c(1, 6)) +  
-	    guides(size = "none", color=guide_legend(ncol=1))
-
-# plot clusters by subdivision	 
-plot(subdiv["cluster"], pal=RColorBrewer::brewer.pal(k.opt+1,"Spectral"))
-    
-#### 3D Plot by [X,Y]Z and cluster
-# 3D plot of first three embeddings where point colors
-#   represent cluster and size pvalue of membership 
-rescale <- function(x) ( x - min(x) ) / ( max(x) - min(x) ) 
-x <- rescale(eumap[["layout"]][,1])
-y <- rescale(eumap[["layout"]][,2])
-z <- rescale(eumap[["layout"]][,3])
-v <- econ$pvalue 
-cls <- factor(econ$cluster)
-  levels(cls) <- rev(RColorBrewer::brewer.pal(k.opt,"Spectral"))
-    cls <- as.character(cls)	
-plot3d(x, y, z, type="s", size=v*2,5, col=cls,
-      xlab="", ylab="", zlab="") 
- 
-#***********************************************************
 # Exploratory plots of raw parameter distributions
 pcol = 10:44 # column indices for model parameters
+econ$cluster <- factor(econ$cluster)
 
 pdf(file.path(getwd(), "results", "ParameterClusteredDistributions.pdf"), height=8, width=11)
   lapply(split(pcol, ceiling(seq_along(pcol)/4)), function(x) {
@@ -262,14 +277,21 @@ pdf(file.path(getwd(), "results", "ParameterClusteredDistributions.pdf"), height
         ggplot(data = econ, aes_string(x = names(econ)[j], fill = "cluster")) + 
           geom_histogram(aes(y =..density..), bins=8, alpha=0.7, position="dodge") + 
             geom_density(aes_string(x = names(econ)[j]), inherit.aes = FALSE) +
-              scale_fill_brewer(palette = "BuPu") +			  
+              scale_color_viridis(discrete = TRUE, option = "A") +			  
                 geom_rug() +
                   labs(x = names(econ)[j]) +
                     theme_minimal()  
      }
-    g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], plist[[4]], 
-                 nrow=2)  
-      print(g) })    
+	if(length(x) == 1) { 
+      g <- grid.arrange(plist[[1]], nrow=1)  
+	} else if(length(x) == 2) {	
+      g <- grid.arrange(plist[[1]], plist[[2]], nrow=1)  
+	} else if(length(x) == 3) {	
+      g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], nrow=2)  
+	} else if(length(x) == 4) {
+      g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], plist[[4]], nrow=2)  
+    }				 				 
+    print(g) }) 
 dev.off()
 
 pdf(file.path(getwd(), "results", "ParameterStackedDistributions.pdf"), height=8, width=11)
@@ -281,28 +303,60 @@ pdf(file.path(getwd(), "results", "ParameterStackedDistributions.pdf"), height=8
       plist[[i]] <- 
         ggplot(data = econ, aes_string(x = names(econ)[j], fill = "cluster")) + 
           geom_density(alpha=0.3) +
-            scale_fill_brewer(palette = "BuPu") +			  
+            scale_color_viridis(discrete = TRUE, option = "A")  +			  
               geom_rug() +
                 labs(x = names(econ)[j]) +
                   theme_minimal() 
      }
-    g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], plist[[4]], 
-                 nrow=2)  
-      print(g) })    
+	if(length(x) == 1) { 
+      g <- grid.arrange(plist[[1]], nrow=1)  
+	} else if(length(x) == 2) {	
+      g <- grid.arrange(plist[[1]], plist[[2]], nrow=1)  
+	} else if(length(x) == 3) {	
+      g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], nrow=2)  
+	} else if(length(x) == 4) {
+      g <- grid.arrange(plist[[1]], plist[[2]], plist[[3]], plist[[4]], nrow=2)  
+    }				 				 
+    print(g) })    
 dev.off()
 
 #***********************************************************
 # Cluster aggregation statistics
-clust.med <- aggregate(econ[,7:ncol(econ)], by=list(econ[,"cluster"]), median)
-clust.mad <- aggregate(econ[,7:ncol(econ)], by=list(econ[,"cluster"]), mad)
+clust.med <- aggregate(econ[,pcol], by=list(econ[,"cluster"]), median)
+clust.mad <- aggregate(econ[,pcol], by=list(econ[,"cluster"]), mad)
 
-# plot distribution of Gini_Index._delta
-i = Gini_Index._delta
-ggplot(data = clust.med, mapping = aes_string(x = i)) + 
-  geom_histogram(aes(y=..density..), bins=k.opt, fill="blue", 
-                 color="white", alpha=0.7) + 
-  geom_density() +
-  geom_rug() +
-  labs(x=i) +
-  theme_minimal()  
- 
+clr <- RColorBrewer::brewer.pal(nrow(clust.med), "PRGn")
+
+pdf(file.path(getwd(), "results", "AggregatedMedian.pdf"), 
+    height=10, width=10)
+  par(mfrow=c(2,2))
+    hist(clust.med[,2], breaks=nrow(clust.med), freq=FALSE, col=clr,
+         main=paste0("Median ", names(clust.med)[2]),
+    	 xlab=names(clust.med)[2], ylab="pdf")
+    	 lines(density(clust.med[,2]))
+         legend("topright", legend=paste0("clust", 1:nrow(clust.med)), 
+    	       fill=clr, cex=0.75)
+  for(j in 3:ncol(clust.med)){
+    hist(clust.med[,j], breaks=nrow(clust.med), freq=FALSE, col=clr,
+        main=paste0("Median ", names(clust.med)[j]),
+    	  xlab=names(clust.med)[j], ylab="pdf")
+    	  lines(density(clust.med[,j]))
+  }
+dev.off()  
+
+pdf(file.path(getwd(), "results", "AggregatedMAD.pdf"), 
+    height=10, width=10)
+  par(mfrow=c(2,2))
+    hist(clust.mad[,2], breaks=nrow(clust.mad), freq=FALSE, col=clr,
+         main=paste0("MAD ", names(clust.mad)[2]),
+    	 xlab=names(clust.mad)[2], ylab="pdf")
+    	 lines(density(clust.mad[,2]))
+         legend("topright", legend=paste0("clust", 1:nrow(clust.mad)), 
+    	       fill=clr, cex=0.75)
+  for(j in 3:ncol(clust.mad)){
+    hist(clust.mad[,j], breaks=nrow(clust.mad), freq=FALSE, col=clr,
+        main=paste0("MAD ", names(clust.mad)[j]),
+    	  xlab=names(clust.mad)[j], ylab="pdf")
+    	  lines(density(clust.mad[,j]))
+  }
+dev.off()  
