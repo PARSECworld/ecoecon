@@ -160,7 +160,7 @@ ecoecon <- (er.class - 5000) * sdiv
                 "ecoecon.tif"), overwrite = TRUE)
 
 #***********************************************************
-# PLot results
+# Plot results
 
 pdf(file.path(getwd(), "results", "UMAP_Cluster_resutls.pdf"),
     height=8.5, width=11) 
@@ -209,6 +209,8 @@ vclr <- rbPal(30)[as.numeric(cut(v, breaks = 30))]
 plot3d(x, y, z, type="s", size=v*2,5, col=vclr,
       xlab="", ylab="", zlab="") 
     
+# rgl::rgl.snapshot(file.path(getwd(), "results", "4D_embeddings.png"))	
+	
 #### 3D Plot by [X,Y]Z and cluster
 # 3D plot of first three embeddings where point colors
 #   represent cluster and size pvalue of membership 
@@ -223,6 +225,8 @@ cls <- factor(econ$cluster)
 plot3d(x, y, z, type="s", size=v*2,5, col=cls,
       xlab="", ylab="", zlab="") 
  
+# rgl::rgl.snapshot(file.path(getwd(), "results", "3D_embeddings_cluster_p.png"))	
+
 #***********************************************************
 # Calculate per-group PCA
 
