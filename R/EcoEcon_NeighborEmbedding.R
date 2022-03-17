@@ -9,6 +9,8 @@ setwd("C:/evans/GITS/ecoecon")
 
 set.seed(42)
 
+mdl = c("all", "deltas")[2]
+
 #*********************************
 # Read tabular data
 econ <- read.csv(file.path(data.dir, "Oregon_CSD_Table.csv"))
@@ -39,11 +41,18 @@ pecon <- data.frame(parm=new, pre=pre, post=post)
     }
   names(delta) <- pecon$parm
 econ.delta <- as.data.frame(do.call(cbind, delta))
-  names(econ.delta) <- paste(names(econ.delta), "_delta")
+  names(econ.delta) <- paste0(names(econ.delta), "_delta")
 
-econ <- data.frame(AFFGEOID = econ[,1], econ[,post], 
-                        econ.delta, econ[,c(34:36)])
- 
+if(mdl == "all") {
+  econ <- data.frame(AFFGEOID = econ[,1], econ[,post], 
+                     econ.delta, econ[,c(34:36)])
+	cidx = 0 
+} else if(mdl == "deltas") { 
+  econ <- data.frame(AFFGEOID = econ[,1], econ.delta, 
+                     econ[,c(34:36)]) 
+	cidx = 0 					 
+}
+
 #*********************************
 #   Index and remove NA's
 #   Screen collinearity
@@ -85,7 +94,7 @@ ecoecon <- merge(st_drop_geometry(subdiv), er.dat, by="Value")
 #***********************************************************
 # Create UMAP Manifold then project to  
 #   new statistical space
-d = ncol(econ)
+d = ncol(econ)-1
 k = 12
 
 custom.settings <- umap.defaults 
@@ -156,6 +165,7 @@ er.prop <- focal(er, matrix(1, 5, 5), fprop)
 ecoecon <- (er.class - 5000) * sdiv
   ecoecon <- c(ecoecon, sdiv, er.class, er.prop)
     names(ecoecon) <- c("ecoecon", "subdiv", "realm", "prealm")
+	ecoecon[[4]] <- mask(ecoecon[[4]], ecoecon[[1]])
     writeRaster(ecoecon, file.path(getwd(), "results",  
                 "ecoecon.tif"), overwrite = TRUE)
 
@@ -229,13 +239,27 @@ plot3d(x, y, z, type="s", size=v*2,5, col=cls,
 
 #***********************************************************
 # Calculate per-group PCA
+#   loadings / eigenvectors are in the eigload object
+#   feature contributions are in the contribution object
+pca.out = file.path(getwd(), "results/pca") 
 
+getdistance <- function(ind_row, center, scale){
+  return(sum(((ind_row-center)/scale)^2))
+}
+cos2 <- function(ind.coord, d2){
+  return(ind.coord^2/d2)
+}
+contrib <- function(ind.coord, comp.sdev, n.ind){
+  100*(1/n.ind)*ind.coord^2/comp.sdev^2
+}
+	
 group <- sort(unique(econ$cluster))
   contributions <- list()
+  eigload <- list()
 
-pdf(file.path(getwd(), "results", "GroupPCA.pdf"), height=10, width=10)
+pdf(file.path(pca.out, "GroupPCA.pdf"), height=10, width=10)
   for(i in 1:length(group)) {
-    d <- econ[econ$cluster == group[i],][c(1,10:29)]
+    d <- econ[econ$cluster == group[i],][c(1,10:ncol(econ))]
       res.pca <- prcomp(d[,-1], scale = TRUE)
     plt <- fviz_eig(res.pca, main=paste0("Cluster ", i, " PCA variances"))
 	  print(plt)
@@ -251,24 +275,29 @@ pdf(file.path(getwd(), "results", "GroupPCA.pdf"), height=10, width=10)
     ind.coord <- res.pca$x	
     center <- res.pca$center
     scale <- res.pca$scale
-    getdistance <- function(ind_row, center, scale){
-      return(sum(((ind_row-center)/scale)^2))
-      }
+
     d2 <- apply(d[,-1], 1, getdistance, center, scale)
-    cos2 <- function(ind.coord, d2){return(ind.coord^2/d2)}
     ind.cos2 <- apply(ind.coord, 2, cos2, d2)	
-    contrib <- function(ind.coord, comp.sdev, n.ind){
-      100*(1/n.ind)*ind.coord^2/comp.sdev^2
-    }
     ind.contrib <- t(apply(ind.coord, 1, contrib, 
                      res.pca$sdev, nrow(ind.coord)))
     contributions[[i]] <- data.frame(AFFGEOID=d[,1], cluster=i, ind.contrib) 
+	eigload[[i]] <- data.frame(cluster=group[i], round(res.pca$rotation, 6))
   }
 dev.off()
+
+rn <- rownames(eigload[[1]])
+  eigload <- do.call(plyr::rbind.fill, eigload) 
+    eigload <- data.frame(parm=rn, eigload) 
+      write.csv(eigload, file.path(pca.out, "eigenvectors.csv"), 
+                row.names = FALSE)
+
+contributions <- do.call(plyr::rbind.fill, contributions)   
+  write.csv(contributions, file.path(pca.out, "FeatureContribution.csv"), 
+            row.names = FALSE)
   
 #***********************************************************
 # Exploratory plots of raw parameter distributions
-pcol = 10:44 # column indices for model parameters
+pcol = 10:ncol(econ) # column indices for model parameters
 econ$cluster <- factor(econ$cluster)
 
 pdf(file.path(getwd(), "results", "ParameterClusteredDistributions.pdf"), height=8, width=11)
