@@ -85,8 +85,8 @@ eco <- extract(er, vect(subdiv))
   names(d) <- paste0("ER", names(d)) 
   
 er.maj  <- apply(d, 1, function(x) names(d)[which.max(x)])  
-subdiv$Value <- as.numeric(substring(er.maj, 3, 6))
-subdiv$er.prop <- apply(d, 1, function(x) x[which.max(x)] ) 
+  subdiv$Value <- as.numeric(substring(er.maj, 3, 6))
+    subdiv$er.prop <- apply(d, 1, function(x) x[which.max(x)] ) 
 
 ecoecon <- merge(st_drop_geometry(subdiv), er.dat, by="Value") 
 # apply(ecoecon[,64:72], 2, function(x) length(unique(x)) )
