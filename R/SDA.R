@@ -52,23 +52,31 @@ ecoecon_poly <- st_cast(st_read(file.path(out.dir, "ecoecon_polys.shp")), "POLYG
 
 gini2010 <- rasterize(vect(subdiv), ecoecon, field="Gini_Index_2010")
 gini2019 <- rasterize(vect(subdiv), ecoecon, field="Gini_Index_2019")
-  ecoecon_poly$gini2010 <- as.numeric(extract(gini2010, vect(ecoecon_poly), "median")[,2])
-  ecoecon_poly$gini2019 <- as.numeric(extract(gini2019, vect(ecoecon_poly), "median")[,2])
+  ecoecon_poly$gini2010 <- as.numeric(extract(gini2010, vect(ecoecon_poly), 
+                                      "median", na.rm=TRUE)[,2])
+  ecoecon_poly$gini2019 <- as.numeric(extract(gini2019, vect(ecoecon_poly), 
+                                      "median", na.rm=TRUE)[,2])
 
 pct_ba2012 <- rasterize(vect(subdiv), ecoecon, field="pct_bachelors_degree_higher_2012") 
 pct_ba2019 <- rasterize(vect(subdiv), ecoecon, field="pct_bachelors_degree_higher_2019") 
-  ecoecon_poly$pct_ba2012 <- as.numeric(extract(pct_ba2012, vect(ecoecon_poly), "median")[,2])
-  ecoecon_poly$pct_ba2019 <- as.numeric(extract(pct_ba2019, vect(ecoecon_poly), "median")[,2])
+  ecoecon_poly$pct_ba2012 <- as.numeric(extract(pct_ba2012, vect(ecoecon_poly), 
+                                        "median", na.rm=TRUE)[,2])
+  ecoecon_poly$pct_ba2019 <- as.numeric(extract(pct_ba2019, vect(ecoecon_poly), 
+                                        "median", na.rm=TRUE)[,2])
 
 med_income2012 <- rasterize(vect(subdiv), ecoecon, field="Median_Income_Households_2012") 
 med_income2019 <- rasterize(vect(subdiv), ecoecon, field="Median_Income_Households_2019") 
-  ecoecon_poly$med_income2012 <- as.numeric(extract(med_income2012, vect(ecoecon_poly), "median")[,2])
-  ecoecon_poly$med_income2019 <- as.numeric(extract(med_income2019, vect(ecoecon_poly), "median")[,2])
+  ecoecon_poly$med_income2012 <- as.numeric(extract(med_income2012, vect(ecoecon_poly), 
+                                            "median", na.rm=TRUE)[,2])
+  ecoecon_poly$med_income2019 <- as.numeric(extract(med_income2019, vect(ecoecon_poly), 
+                                            "median", na.rm=TRUE)[,2])
 
-poverty2012 <- rasterize(vect(subdiv), ecoecon, field="Population_Poverty_Status_Determined_2012") 
-poverty2019 <- rasterize(vect(subdiv), ecoecon, field="Population_Poverty_Status_Determined_2019") 
-  ecoecon_poly$poverty2012 <- as.numeric(extract(poverty2012, vect(ecoecon_poly), "median")[,2])
-  ecoecon_poly$poverty2019 <- as.numeric(extract(poverty2019, vect(ecoecon_poly), "median")[,2])
+poverty2012 <- rasterize(vect(subdiv), ecoecon, field="Percent_Population_Poverty_Status_Determined_2012") 
+poverty2019 <- rasterize(vect(subdiv), ecoecon, field="Percent_Population_Poverty_Status_Determined_2019") 
+  ecoecon_poly$poverty2012 <- as.numeric(extract(poverty2012, vect(ecoecon_poly), 
+                                         "median", na.rm=TRUE)[,2])
+  ecoecon_poly$poverty2019 <- as.numeric(extract(poverty2019, vect(ecoecon_poly), 
+                                         "median", na.rm=TRUE)[,2])
 
 #*******************************************
 # Wij matrix
@@ -122,7 +130,7 @@ qsa <- local_bimoran(wij, ecoecon_poly[c('poverty2012', 'poverty2019')])
   plot(st_geometry(ecoecon_poly), col=sapply(lisa_clusters, 
        function(x){return(lisa_colors[[x+1]])}), 
        border = "#333333", lwd=0.2)
-  title(main = "Poverty Status 2012 & 2019 Local Moran")
+  title(main = "Percent Poverty 2012 & 2019 Local Moran")
   legend('bottomleft', legend = lisa_labels, fill = lisa_colors, 
          border = "#eeeeee", ncol = 4, cex=0.65)
 
